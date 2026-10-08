@@ -39,9 +39,7 @@
 
 ## What This Does
 
-<!-- Three or four sentences: what a user asks for, and what they get back. -->
-
-
+A user asks for a thrift find in plain language, for example "a vintage graphic tee under $30, size M". FitFindr pulls a description, an optional size, and an optional price ceiling out of that sentence and searches the listings file. If something matches, it takes the first result, suggests how that item goes with the saved wardrobe, and writes a short caption someone could post. If the search comes back empty, it stops and names what to change: the description, the size, or the price.
 
 ---
 
@@ -59,24 +57,24 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Filters the listings file by size and price, then ranks what remains by keyword overlap with the description.
+- **Inputs:** `description` (str), `size` (str or None), `max_price` (float or None).
+- **Returns:** A list of listing dicts, best match first, at most `config.SEARCH_RESULT_LIMIT` (10). Each dict has `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`. A word in the title counts more than the same word in the description. Ties break toward the lower price. Size matching is whole tokens: `M` matches `S/M`, `S` does not match `US 9`, and `L` does not match `XL`.
+- **When it has nothing:** An empty list. Not `None`, and it does not raise.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the model for one or two outfits that pair a new listing with the user's wardrobe.
+- **Inputs:** `new_item` (dict, one listing), `wardrobe` (dict with an `items` key holding a list of wardrobe item dicts).
+- **Returns:** A non-empty string of outfit advice. With items in the wardrobe, the prompt tells the model to name those pieces. With an empty `items` list, the prompt asks for general styling advice instead.
+- **When it has nothing:** If the model returns a blank string, the function returns a fixed sentence of general advice naming the item. It does not return `""` and it does not raise. An empty wardrobe is not the empty case — that path still returns advice.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the model for a 2-to-4 sentence caption about the find, naming the title, price, and platform once each.
+- **Inputs:** `outfit` (str, the suggestion from `suggest_outfit`), `new_item` (dict, the listing).
+- **Returns:** A non-empty string caption.
+- **When it has nothing:** If `outfit` is empty or only whitespace, it does not call the model. It returns a sentence that names the title, price, and platform and says there was no outfit suggestion to write from.
 
 ---
 
@@ -93,13 +91,13 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If `search_listings` returns an empty list, put a message in `session["error"]` that names the description, size, and price that were searched and what to change, then return. Do not call `suggest_outfit`. Otherwise take `session["search_results"][0]`, store it on `session["selected_item"]`, and go to `suggest_outfit`.
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** Regex and string splitting in `agent.py::parse_query`, not a model call. `under $30` becomes `max_price` (float). `size M`, `size medium`, or `size 8` becomes `size` (str). The remaining words, minus filler like "looking" and "for", become `description` (str).
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** `parsed` is written first and then read back for the search call. `search_results` is written next. On a non-empty list, `selected_item` is set from `search_results[0]` and `passed_to_suggest_outfit_id` is set from that item's `id`. `suggest_outfit` is called with `selected_item` and `wardrobe` from the session, and its string is stored on `outfit_suggestion`. `create_fit_card` is called with `outfit_suggestion` and `selected_item`, and its string is stored on `fit_card`. On the empty path, `fit_card`, `outfit_suggestion`, and `passed_to_suggest_outfit_id` stay `None`.
 
 ---
 
@@ -112,26 +110,47 @@
 
 **One full query**
 
-```
-$ python app.py ask '...'
+An impossible query, so this path does not call the model. `fit_card` stays unset because the loop returns first.
 
+```
+$ python app.py ask 'designer ballgown size XXS under $5'
+
+  Nothing in the listings matched 'designer ballgown', size XXS, at or under $5. Try a broader description (search matches words in the title, description, and style tags); or a different size, or leave the size off; or a higher price ceiling.
+
+0 model calls this session
 ```
 
 **The three tools, tested one at a time**
 
 ```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
+$ python -c "from tools import search_listings; hits = search_listings('graphic tee', max_price=30); print(len(hits));
+[print(h['id'], h['price'], h['size'], h['platform'], h['title']) for h in hits]"
 
+6
+lst_006 24.0 L depop Graphic Tee — 2003 Tour Bootleg Style
+lst_002 18.0 S/M depop Y2K Baby Tee — Butterfly Print
+lst_033 19.0 L depop Vintage Band Tee — Faded Grey
+lst_015 26.0 L depop Vintage Graphic Hoodie — Faded Black
+lst_017 15.0 S/M depop Mesh Long-Sleeve Top — Black
+lst_011 27.0 W29 poshmark Low-Rise Cargo Pants — Khaki
+```
+
+`suggest_outfit` and `create_fit_card` call the model through `generate()`. They need `GEMINI_API_KEY` in `.env` (the same key as unit 1). That key is not on this machine yet, so those two commands have not been run. The commands to run once the key is in `.env`:
+
+```
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
 ```
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
-
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
 ```
 
-```
-$ python -c "from tools import create_fit_card; ..."
+The empty-outfit case does not call the model:
 
+```
+$ python -c "from tools import create_fit_card; print(create_fit_card('   ', {'title': 'Test Tee', 'price': 12, 'platform': 'depop'}))"
+
+No caption for Test Tee ($12 on depop): there was no outfit suggestion to write from.
 ```
 
 ---
@@ -147,15 +166,15 @@ $ python -c "from tools import create_fit_card; ..."
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* A `search_listings` size filter, with the note that `"s" in "us 9"` and `"l" in "xl"` are both true.
+- *What came back:* A first version that checked whether the requested size was a substring of the listing size.
+- *What I changed:* Whole-token matching. `M` still matches `S/M`. `S` does not match `US 9`. `L` does not match `XL`. `8` matches `US 8` and does not match `US 8.5`.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* The message to show when a search comes back empty.
+- *What came back:* A short line that only said nothing was found.
+- *What I changed:* The message now names the description, the size, and the price ceiling that were used, and it says which of those to change. "No results" is not that message.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
