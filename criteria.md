@@ -25,9 +25,11 @@ Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
 **Why this target:**
-<!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
-     "my search is a plain keyword match and some phrasings will miss" is a
-     real answer. -->
+I picked 4 of 5 because `search_listings` is a keyword overlap score, not a
+synonym search. A query that says "shirt" instead of "tee", or a vibe word
+that never appears in the title, style tags, or description, scores zero and
+the loop stops even when a person would call it a match. 5 of 5 would assume
+every phrasing shares the listing's words.
 
 ---
 
@@ -37,64 +39,58 @@ Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
 **Why this target:**
-<!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
-     about this path? -->
+5 of 5 is the right bar here because this path never calls the model. The
+branch in `agent.py::run_agent` checks whether `search_listings` returned an
+empty list, writes `session["error"]`, and returns before `suggest_outfit`.
+The same impossible query cannot take the other path unless the filter itself
+changes. Criterion 1 can miss because of wording. This one cannot.
 
 ---
 
-## 3. Something about state
+## 3. The item search picked is the item the next tool received
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
+Given a query that matches at least one listing, `session["selected_item"]["id"]`,
+`session["search_results"][0]["id"]`, and `session["passed_to_suggest_outfit_id"]`
+are the same id — in 5 of 5 tries.
 
 **Why this target:**
-
-
-
----
-
-## 4. Something about the fit card
-
-<!-- YOU WRITE THIS ONE.
-
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
-
-**Why this target:**
+5 of 5, because those three values are copied in `run_agent` from the session.
+No model writes them, so a miss is a wiring bug and should not happen on any
+try. I did not require the outfit paragraph to quote the title. The model can
+shorten a title, and that would fail a state check for a writing reason.
 
 
 
 ---
 
-## 5. Your choice
+## 4. The fit card names the price and the platform
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
+Given 5 fit cards for 5 different listings, at least 4 of the 5 mention that
+listing's price as a number and its platform name, and are 2 to 4 sentences.
 
 **Why this target:**
+Not 5 of 5, because `create_fit_card` calls the model at temperature 0.9, so
+one card can drop the platform or run long. A looser bar like "sounds like a
+caption" is not something another person could score the same way twice. Price,
+platform, and sentence count are. Wording can change between runs. Those three
+facts should not.
+
+
+
+---
+
+## 5. A price ceiling is never broken
+
+When the query includes a price ceiling, every listing left in
+`session["search_results"]` has `price` less than or equal to that ceiling —
+5 of 5 tries.
+
+**Why this target:**
+5 of 5, because the ceiling is a numeric comparison in `search_listings`,
+before any model call. One listing over the ceiling is a broken filter, not a
+close call. I did not also require the top result to be the cheapest match.
+The sort is by keyword score, so a stronger keyword match can cost more and
+still be under the ceiling.
 
 
 
