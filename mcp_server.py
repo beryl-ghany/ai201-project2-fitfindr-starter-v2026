@@ -67,24 +67,22 @@ from tools import search_listings as _search_listings_impl  # noqa: F401 — you
 mcp = FastMCP("fitfindr", log_level="WARNING")
 
 
-# ── TODO: uncomment and fill this in ──────────────────────────────────────────
-#
-# @mcp.tool()
-# def search_listings(
-#     description: str,
-#     size: str | None = None,
-#     max_price: float | None = None,
-# ) -> list[dict]:
-#     """
-#     <-- YOUR DESCRIPTION GOES HERE.
-#
-#         One or two sentences. What does this tool do, what does it need, and
-#         what does it give back when it finds nothing? Written for a reader
-#         who cannot see the code.
-#     """
-#     return _search_listings_impl(description, size, max_price)
-#
-# ──────────────────────────────────────────────────────────────────────────────
+@mcp.tool()
+def search_listings(
+    description: str,
+    size: str | None = None,
+    max_price: float | None = None,
+) -> list[dict]:
+    """
+    Search secondhand listings by keyword.
+
+    description is the words to match (str). size is optional (str or null);
+    a letter size matches a whole size token, so M matches S/M and L does not
+    match XL. max_price is an optional ceiling in dollars (number or null),
+    inclusive. Returns a list of listing objects, best match first. Returns
+    an empty list when nothing matches.
+    """
+    return _search_listings_impl(description, size, max_price)
 #
 # Two notes on the block above.
 #
