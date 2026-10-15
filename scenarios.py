@@ -30,23 +30,54 @@ SCENARIOS = [
     },
     {
         # A user with nothing saved. One of unit 4's three failure modes.
+        # Not one of the five criteria. suggest_outfit should still return advice.
         "name": "empty wardrobe",
         "query": "denim jacket under $50",
         "wardrobe": "empty",
         "criterion": None,
     },
-    # TODO: add what your criteria 3, 4 and 5 need.
-    #
-    # Set "criterion" to the number in criteria.md that the scenario tests.
-    # "criterion": None means a diagnostic run — useful to have, but it isn't
-    # one of your five, and run_eval.py marks it as such in the table.
-    #
-    # For a state criterion, any normal query works — what you're checking is
-    # what ends up in the session, not what the user typed.
-    #
-    # For a fit-card criterion, you probably want the SAME query listed more
-    # than once, or several different items, depending on what your criterion
-    # actually says.
+    {
+        # Criterion 3: ids in the session, on a query that matches.
+        "name": "selected item matches the item passed on",
+        "query": "90s track jacket in size M",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        # Criterion 5: every returned price is under the ceiling.
+        "name": "price ceiling holds",
+        "query": "silk slip dress in midi length under $40",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
+    {
+        # Criterion 4 is five different listings, not five repeats of one.
+        # Each of these is one card. run_eval still repeats each five times;
+        # the verdict uses one card per listing (try 1 of each, plus the
+        # matching-query card above as the fifth listing).
+        "name": "fit card: platform sneakers",
+        "query": "platform sneakers size 8",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        "name": "fit card: denim jacket",
+        "query": "denim jacket under $50",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        "name": "fit card: corduroy pants",
+        "query": "corduroy wide-leg pants under $40",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        "name": "fit card: bucket hat",
+        "query": "bucket hat under $20",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
 ]
 
 WARDROBES = ("example", "empty")
